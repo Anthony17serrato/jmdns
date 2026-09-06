@@ -485,9 +485,14 @@ public class JmDNSImpl extends JmDNS implements DNSStatefulObject, DNSTaskStarte
     }
 
     private InetSocketAddress getMulticastBindAddress(HostInfo hostInfo) {
-        if (IS_WINDOWS && JAVA_VERSION >= 17) {
-			// JDK17+ removed TwoStacksPlainDatagramSocketImpl which causes a stack trace
-			// on Windows JDK < 17 so this constructor is required
+        if (IS_WINDOWS && JAVA_VERSION < 17) {
+            // JDK17+ removed TwoStacksPlainDatagramSocketImpl which causes a stack trace
+            // on Windows JDK < 17, so those versions keep the wildcard bind (#356).
+            return new InetSocketAddress(DNSConstants.MDNS_PORT);
+        } else if (hostInfo != null && hostInfo.getInetAddress() != null) {
+            // Binding the host address fixes the source address of outgoing multicast. A wildcard
+            // bind leaves that choice to the routing table, which a VPN can own, so packets go out
+            // the LAN interface carrying an off-link source and receivers drop them (#203).
             return new InetSocketAddress(hostInfo.getInetAddress(), DNSConstants.MDNS_PORT);
         } else {
             return new InetSocketAddress(DNSConstants.MDNS_PORT);
